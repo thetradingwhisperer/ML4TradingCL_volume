@@ -76,7 +76,7 @@ Data preparation and partitioning
 
 ```{r}
 library(naivebayes)
-library(corrplot)
+
 
 #splitting data into test and train
 #require(caTools)
