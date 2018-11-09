@@ -1,0 +1,138 @@
+---
+title: "Daily data ML for crude oil"
+output: html_notebook
+---
+ 
+ Loading data and calculation of moving averages
+
+```{r}
+
+
+library(tidyverse)
+library(lubridate)
+library(quantmod)
+library(ggplot2)
+
+price <- read.csv("wtiDaily.csv")
+
+setup_data <- function(pricedata) {
+  
+       names(pricedata) <- c("Date", "Open", "High", "Low", "Close")
+       dates <- parse_date_time(x = pricedata[,1], "mdy_HM", truncated = 3)
+       pricedata <- pricedata[,2:5]
+       pricedata <- xts(pricedata, order.by = dates)
+}
+
+
+price <- setup_data(price)
+ema7 <- EMA(price$Close, n = 7)
+ema20 <- EMA(price$Close, n = 20)
+ema50 <- EMA(price$Close, n = 50)
+ema70 <- EMA(price$Close, n = 70)
+
+```
+
+
+
+```{r}
+chartSeries(price, TA=NULL, subset = '2017-06::')
+addEMA(n = 7,col = "orange")
+addEMA(n = 20,col = "red")
+#addEMA(n = 70,col = "blue")
+
+
+```
+
+Defining the type of candle (features) and dataframe to use for learning purpose
+
+```{r}
+
+candle.type.current <- data.frame(ifelse( price$Close > price$Open, "bull", "bear"))
+candle.type.previous <- data.frame(lag(candle.type.current$Close, n = 1))
+candle.next.day <- data.frame(lead(candle.type.current$Close, n = 1))
+doji <- data.frame(ifelse(abs(price$Close - price$Open) <= 0.45, "yes", "no"))
+position.to.ema7 <- data.frame(ifelse(price$Close > ema7, "above", "below"))
+position.to.ema20 <- data.frame(ifelse(price$Close > ema20, "above", "below"))
+#position.to.ema50 <- data.frame(ifelse(price$Close > ema50, "above", "below"))
+ema7.to.ema20 <- data.frame(ifelse(ema7 > ema20, "above", "below"))
+dailywin <- data.frame(abs(price$Close - price$Open))
+candle.nextday.win <- lead(dailywin$Close, 1)
+
+
+dailyprice <- data.frame(candle.type.current,candle.type.previous,doji, position.to.ema7,position.to.ema20, ema7.to.ema20, dailywin, candle.nextday.win, candle.next.day)
+
+
+names(dailyprice) <- c("candle.type.current", "candle.type.previous","doji", "position.to.ema7", "position.to.ema20", "ema7.to.ema20", "dailywin", "candle.nextday.win", "candle.next.day")
+
+
+dailyprice <- slice(dailyprice, 21:length(dailyprice$doji))
+
+
+
+```
+
+Data preparation and partitioning
+
+```{r}
+
+#splitting data into test and train
+#require(caTools)
+#set.seed(104) 
+#sample = sample.split(dailyprice$candle.next.day, SplitRatio = .7)
+#train = subset(dailyprice, sample == TRUE)
+#test  = subset(dailyprice, sample == FALSE)
+test <- dailyprice[71:400,]
+train <- dailyprice[1:70,]
+
+
+
+target <- "candle.next.day"
+predictors.variable <- c("candle.type.current", "candle.type.previous","doji", "position.to.ema7", "position.to.ema20", "ema7.to.ema20", "dailywin")
+predictors <- paste(predictors.variable, collapse = "+")
+formula <- as.formula(paste(target, "~", predictors, sep = ""))
+
+
+
+#function for processing predictions
+predictedReturn <- function(df, pred){
+    df$pred <- pred
+    df$prediReturn <- ifelse(df$candle.next.day != df$pred, -df$candle.nextday.win, df$candle.nextday.win)
+    df$cumReturn <- cumsum(df$prediReturn)
+    return(df)
+}
+
+
+plot(price$Close[91:536,])
+```
+
+
+NaiveBayes ML algorithm
+
+```{r}
+library(naivebayes)
+# Naivebayes model
+nb <- naive_bayes(formula, data = train)
+plot(nb)
+
+# Prediction
+pred2 <- predict(nb, test)
+pred1 <- predict(nb, train)
+
+nb.test <- predictedReturn(test, pred2)
+nb.train <- predictedReturn(train, pred1)
+
+#Results
+plot(nb.test$prediReturn)
+plot(nb.test$cumReturn)
+
+plot(nb.train$prediReturn)
+plot(nb.train$cumReturn)
+
+results <- table(nb.test$candle.next.day, nb.test$pred)
+print(results)
+
+nb.misclsserror <- mean(nb.test$candle.next.day != nb.test$pred)
+print(paste("Accuracy", 1-nb.misclsserror))
+```
+
+
