@@ -54,6 +54,8 @@ y <- 5:7
 xy <- cbind(x,y)
 yx <- rbind(x,y)
 
+xy
+yx
 ```
 
 Data frames  
@@ -86,5 +88,8 @@ x_3row <- x[1:3,]
 
 #Select only the 1st 3 rows
 x_2cols <- x[,1:2]
+
+print(x_3row)
+print(x_2cols)
 ```
 
