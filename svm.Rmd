@@ -1,0 +1,239 @@
+---
+title: "Daily data ML for crude oil"
+output: html_notebook
+---
+ 
+ Loading data and calculation of moving averages
+
+```{r}
+
+
+library(tidyverse)
+library(lubridate)
+library(quantmod)
+library(ggplot2)
+
+price <- read.csv("wtiDaily.csv")
+
+setup_data <- function(pricedata) {
+  
+       names(pricedata) <- c("Date", "Open", "High", "Low", "Close")
+       dates <- parse_date_time(x = pricedata[,1], "mdy_HM", truncated = 3)
+       pricedata <- pricedata[,2:5]
+       pricedata <- xts(pricedata, order.by = dates)
+}
+
+
+price <- setup_data(price)
+ema7 <- EMA(price$Close, n = 7)
+ema20 <- EMA(price$Close, n = 20)
+ema50 <- EMA(price$Close, n = 50)
+ema70 <- EMA(price$Close, n = 70)
+
+```
+
+
+
+```{r}
+chartSeries(price, TA=NULL, subset = '2017-06::')
+addEMA(n = 7,col = "orange")
+addEMA(n = 20,col = "red")
+#addEMA(n = 70,col = "blue")
+
+
+```
+
+Defining the type of candle (features) and dataframe to use for learning purpose
+
+```{r}
+
+candle.type.current <- data.frame(ifelse( price$Close > price$Open, "bull", "bear"))
+candle.type.previous <- data.frame(lag(candle.type.current$Close, n = 1))
+candle.next.day <- data.frame(lead(candle.type.current$Close, n = 1))
+doji <- data.frame(ifelse(abs(price$Close - price$Open) <= 0.45, "yes", "no"))
+position.to.ema7 <- data.frame(ifelse(price$Close > ema7, "above", "below"))
+position.to.ema20 <- data.frame(ifelse(price$Close > ema20, "above", "below"))
+#position.to.ema50 <- data.frame(ifelse(price$Close > ema50, "above", "below"))
+ema7.to.ema20 <- data.frame(ifelse(ema7 > ema20, "above", "below"))
+dailywin <- data.frame(abs(price$Close - price$Open))
+candle.nextday.win <- lead(dailywin$Close, 1)
+
+
+dailyprice <- data.frame(candle.type.current,candle.type.previous,doji, position.to.ema7,position.to.ema20, ema7.to.ema20, dailywin, candle.nextday.win, candle.next.day)
+
+
+names(dailyprice) <- c("candle.type.current", "candle.type.previous","doji", "position.to.ema7", "position.to.ema20", "ema7.to.ema20", "dailywin", "candle.nextday.win", "candle.next.day")
+
+
+dailyprice <- slice(dailyprice, 21:length(dailyprice$doji))
+
+
+
+```
+
+Data preparation and partitioning
+
+```{r}
+library(naivebayes)
+
+
+#splitting data into test and train
+#require(caTools)
+#set.seed(104) 
+#sample = sample.split(dailyprice$candle.next.day, SplitRatio = .7)
+#train = subset(dailyprice, sample == TRUE)
+#test  = subset(dailyprice, sample == FALSE)
+test <- dailyprice[71:400,]
+train <- dailyprice[1:70,]
+
+
+
+target <- "candle.next.day"
+predictors.variable <- c("candle.type.current", "candle.type.previous","doji", "position.to.ema7", "position.to.ema20", "ema7.to.ema20", "dailywin")
+predictors <- paste(predictors.variable, collapse = "+")
+formula <- as.formula(paste(target, "~", predictors, sep = ""))
+
+
+
+#function for processing predictions
+predictedReturn <- function(df, pred){
+    df$pred <- pred
+    df$prediReturn <- ifelse(df$candle.next.day != df$pred, -df$candle.nextday.win, df$candle.nextday.win)
+    df$cumReturn <- cumsum(df$prediReturn)
+    return(df)
+}
+
+
+plot(price$Close[91:536,])
+```
+
+
+NaiveBayes ML algorithm
+
+```{r}
+
+# Naivebayes model
+nb <- naive_bayes(formula, data = train)
+plot(nb)
+
+# Prediction
+pred2 <- predict(nb, test)
+pred1 <- predict(nb, train)
+
+nb.test <- predictedReturn(test, pred2)
+nb.train <- predictedReturn(train, pred1)
+
+#Results
+plot(nb.test$prediReturn)
+plot(nb.test$cumReturn)
+
+plot(nb.train$prediReturn)
+plot(nb.train$cumReturn)
+
+results <- table(nb.test$candle.next.day, nb.test$pred)
+print(results)
+
+nb.misclsserror <- mean(nb.test$candle.next.day != nb.test$pred)
+print(paste("Accuracy", 1-nb.misclsserror))
+```
+
+Support vector machine
+
+```{r}
+# logistic regression
+library("e1071")
+
+
+modelsvm <- svm(formula, data = train, kernel = "radial", cost =10, gamma = 0.2) #playing around with these parameter does not seem to improve results
+
+# Prediction
+pred.svm <- predict(modelsvm, test)
+#pred.svm <- ifelse(pred.glm > 0.5, "1", "0")
+
+summary(modelsvm)
+
+test$candle.next.day <- replace_na(test$candle.next.day, replace = "bull")
+test$dailywin <- replace_na(test$dailywin, replace = 0.5)
+
+#Results
+svm.test <- predictedReturn(test, pred.svm)
+plot(svm.test$prediReturn)
+plot(svm.test$cumReturn)
+results <- table(svm.test$candle.next.day, svm.test$pred)
+print(results)
+
+svm.misclsserror <- mean(svm.test$candle.next.day != svm.test$pred)
+print(paste("Accuracy", 1-svm.misclsserror))
+
+
+```
+
+Strategy: buy if yesterday was bull and sell if yesterday was bear.
+
+```{r}
+
+ori <- ifelse(ema7 > ema20,  "bull", "bear")
+mms3predi <- data.frame(ifelse(ema7 > ema20,  "bear", "bull"))
+mms3predi <- slice(mms3predi, 21:length(mms3predi$EMA))
+#mms3predi <- as.factor(mms3predi)
+#onlybuy <- c(rep("bull", length(dailyprice$doji)))
+
+#ytdaycandle <- dailyprice$candle.type.current
+  
+#mms3 <- predictedReturn(dailyprice, onlybuy)
+mms3 <- predictedReturn(dailyprice, mms3predi$EMA)
+#mms3 <- predictedReturn(dailyprice, ytdaycandle)
+
+plot(mms3$prediReturn)
+plot(mms3$cumReturn)
+resultsmms3 <- table(mms3$candle.next.day, mms3$pred)
+print(resultsmms3)
+
+misclsserror <- mean(mms3$candle.next.day != mms3$pred)
+print(paste("Accuracy", 1-misclsserror))
+
+```
+
+Random forest algorithm
+
+```{r}
+library(randomForest)
+
+fitrandomforest <- randomForest(formula, data = train, importance=TRUE)
+
+rf.predi <- predict(fitrandomforest, test)
+
+plot(fitrandomforest)
+
+rf.test <- predictedReturn(test, rf.predi)
+plot(rf.test$prediReturn)
+plot(rf.test$cumReturn)
+results <- table(rf.test$candle.next.day, rf.test$pred)
+print(results)
+rf.misclsserror <- mean(rf.test$candle.next.day != rf.test$pred)
+print(paste("Accuracy", 1-rf.misclsserror))
+
+```
+Combined return plotting
+
+```{r}
+nb.return <- nb.test$cumReturn
+rf.return <- rf.test$cumReturn
+svm.return <- svm.test$cumReturn
+total.return <- nb.return + svm.return
+names(nb.return) <- "return"
+names(rf.return) <- "return"
+names(svm.return) <- "return"
+
+combined.return <- data.frame(c(1:length(nb.return)),nb.return, rf.return, svm.return, total.return)
+
+print(ggplot(combined.return) + geom_line(aes(combined.return[,1],nb.return, colour = "nb"))
+      #+ geom_line(aes(combined.return[,1],rf.return, colour = "rf"))
+      + geom_line(aes(combined.return[,1],svm.return, colour = "svm"))
+      + geom_line(aes(combined.return[,1],total.return, colour = "total"))  + ylab("cum return (x1000 USD)") + xlab("number of trades (test)"))
+
+print(paste("train:", rownames(train[1,]),":", rownames(train[length(train$doji),]), "test:", rownames(test[1,]), ":", rownames(test[length(test$doji),])))
+
+print(paste("accuracy: ", "nb:", 1-nb.misclsserror, "svm:",1-svm.misclsserror, "rf:", 1-rf.misclsserror  ))
+```
+

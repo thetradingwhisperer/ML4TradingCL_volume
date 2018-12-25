@@ -1,0 +1,67 @@
+---
+title: "Classification based machine learning for trading in R"
+output: html_notebook
+---
+ 
+ Loading data and calculation of moving averages
+
+```{r, warning = FALSE}
+library(tidyverse)
+library(lubridate)
+library(quantmod)
+
+#Loading the data
+price <- read.csv("wtiDaily.csv")
+
+#Custom function to be able to change the data into an xts format
+setup_data <- function(pricedata) {
+  
+       names(pricedata) <- c("Date", "Open", "High", "Low", "Close")
+       dates <- parse_date_time(x = pricedata[,1], "mdy_HM", truncated = 3)
+       pricedata <- pricedata[,2:5]
+       pricedata <- xts(pricedata, order.by = dates)
+}
+
+
+price <- setup_data(price)
+ema7 <- EMA(price$Close, n = 7)
+ema20 <- EMA(price$Close, n = 20)
+ema50 <- EMA(price$Close, n = 50)
+ema70 <- EMA(price$Close, n = 70)
+
+```
+
+### Plotting the data since June 2017
+
+```{r}
+chartSeries(price, TA=NULL, subset = '2017-12::', theme = "white")
+addEMA(n = 7,col = "orange")
+addEMA(n = 20,col = "red")
+
+```
+
+###Feature engineering and predictior variables
+Defining the type of candle (features) and dataframe to use for learning purpose
+
+```{r}
+
+candle.type.today <- data.frame(ifelse( price$Close > price$Open, "bull", "bear"))
+candle.type.yesterday <- data.frame(lag(candle.type.today$Close, n = 1))
+candle.type.nextday <- data.frame(lead(candle.type.today$Close, n = 1))
+doji <- data.frame(ifelse(abs(price$Close - price$Open) <= 0.45, "yes", "no"))
+close.to.ema7 <- data.frame(ifelse(price$Close > ema7, "above", "below"))
+close.to.ema20 <- data.frame(ifelse(price$Close > ema20, "above", "below"))
+ema7.to.ema20 <- data.frame(ifelse(ema7 > ema20, "above", "below"))
+dailywin <- data.frame(abs(price$Close - price$Open))
+candle.nextday.win <- lead(dailywin$Close, 1)
+
+
+dailyprice <- data.frame(candle.type.today,candle.type.yesterday,doji, close.to.ema7,close.to.ema20, ema7.to.ema20, dailywin, candle.nextday.win, candle.type.nextday)
+
+
+names(dailyprice) <- c("candle.type.current", "candle.type.yesterday","doji", "close.to.ema7", "close.to.ema20", "ema7.to.ema20", "dailywin", "candle.nextday.win", "candle.type.nextday")
+
+
+dailyprice <- slice(dailyprice, 21:length(dailyprice$doji))
+
+```

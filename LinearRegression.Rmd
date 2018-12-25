@@ -1,0 +1,15 @@
+---
+title: "Linear Regression"
+output: html_notebook
+---
+
+
+```{r}
+library(quantmod)
+library(TTR)
+
+
+
+
+```
+
