@@ -64,7 +64,7 @@ they can stores different sort of data/elements (Numeric, Logical etc...).
 They are created by reading data of csv,excel or table format.   
 They are also created by binding columns to each other or transforming matrices into dataframes using the dataframe() function.
 ```{r}
-x  <- data.frame(price  =  c(2,-3,5,6,-5) , bar  =  c("up","down", "up", "up", "down"))
+x  <- data.frame(return  =  c(2,-3,5,6,-5) , price  =  c("up","down", "up", "up", "down"))
 x
 ```
 
