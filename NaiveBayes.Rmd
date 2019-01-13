@@ -109,7 +109,8 @@ plot(price$Close[91:536,])
 NaiveBayes ML algorithm
 
 ```{r}
-library(naivebayes)
+library(naivebayes) 
+
 # Naivebayes model
 nb <- naive_bayes(formula, data = train)
 plot(nb)
@@ -121,16 +122,18 @@ pred1 <- predict(nb, train)
 nb.test <- predictedReturn(test, pred2)
 nb.train <- predictedReturn(train, pred1)
 
-#Results
+#Plotting the net daily returns and cumulative returns
 plot(nb.test$prediReturn)
 plot(nb.test$cumReturn)
 
 plot(nb.train$prediReturn)
 plot(nb.train$cumReturn)
 
-results <- table(nb.test$candle.next.day, nb.test$pred)
-print(results)
+#Confusin matrix
+confusionMatrix.nb <- table(nb.test$candle.next.day, nb.test$pred)
+print(confusionMatrix.nb)
 
+#Calculating accuracy
 nb.misclsserror <- mean(nb.test$candle.next.day != nb.test$pred)
 print(paste("Accuracy", 1-nb.misclsserror))
 ```
