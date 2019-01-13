@@ -6,7 +6,6 @@ output: html_notebook
  Loading data and calculation of moving averages
 
 ```{r}
-library(tidyverse)
 library(lubridate)
 library(quantmod)
 
@@ -26,8 +25,7 @@ setup_data <- function(pricedata) {
 price <- setup_data(price)
 ema7 <- EMA(price$Close, n = 7)
 ema20 <- EMA(price$Close, n = 20)
-ema50 <- EMA(price$Close, n = 50)
-ema70 <- EMA(price$Close, n = 70)
+
 
 ```
 
