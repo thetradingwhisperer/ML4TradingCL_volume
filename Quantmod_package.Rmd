@@ -10,11 +10,11 @@ output: html_notebook
 library(quantmod)
 library(TTR)
 
-getSymbols ("AAPL", src = "yahoo")    # from yahoo finance
+getSymbols ("CL=F", src = "yahoo")    # from yahoo finance
 
-chartSeries(to.weekly(AAPL['2016::2018']), theme = "white")
-addEMA(20, col = "red")
-addEMA(50, col = "purple")
+chartSeries(to.daily(`CL=F`['2016::2018']), theme = "white")
+addEMA(7, col = "red")
+addEMA(20, col = "purple")
 
 
 ```
