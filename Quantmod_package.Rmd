@@ -12,7 +12,7 @@ library(TTR)
 
 getSymbols ("CL=F", src = "yahoo")    # from yahoo finance
 
-chartSeries(to.daily(`CL=F`['2016::2018']), theme = "white")
+chartSeries(`CL=F`, theme = "white")
 addEMA(7, col = "red")
 addEMA(20, col = "purple")
 
