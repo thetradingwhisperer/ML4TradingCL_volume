@@ -26,7 +26,6 @@ price <- setup_data(price)
 ema7 <- EMA(price$Close, n = 7)
 ema20 <- EMA(price$Close, n = 20)
 
-
 ```
 
 Plotting the data since June 2017
@@ -35,8 +34,6 @@ Plotting the data since June 2017
 chartSeries(price, TA=NULL, subset = '2017-12::', theme = "white")
 addEMA(n = 7,col = "orange")
 addEMA(n = 20,col = "red")
-
-
 
 ```
 
