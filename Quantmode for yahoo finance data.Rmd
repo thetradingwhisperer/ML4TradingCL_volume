@@ -1,0 +1,22 @@
+---
+title: "Quantmode package to access Yahoo finance data"
+output: html_notebook
+---
+
+## Load quantmode and plot market data
+
+```{r}
+library(quantmod)
+library(TTR)
+
+getSymbols("AAPL", src = "yahoo")
+getSymbols("CL=F", src = "yahoo")
+
+chartSeries(`CL=F`, theme = "white")
+addEMA(20, col = "red")
+
+
+
+```
+
+
